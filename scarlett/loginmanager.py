@@ -2,11 +2,13 @@
 from datetime import datetime
 
 import zila
-from finian import Connection, Result, current_conn
+from finian import Connection, Result, current_conn as _current_conn
 from passlib.hash import pbkdf2_sha512
 from pymongo.database import Database
 
 from scarlett.logger import logger
+
+current_conn = _current_conn.get_current_object()
 
 
 # noinspection DuplicatedCode

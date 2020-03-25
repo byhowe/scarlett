@@ -9,11 +9,13 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from finian import Connection, Result, current_conn
+from finian import Connection, Result, current_conn as _current_conn
 from passlib.hash import pbkdf2_sha512
 from pymongo.database import Database
 
 from scarlett.logger import logger
+
+current_conn = _current_conn.get_current_object()
 
 
 def generate_key(password: bytes, salt: bytes):
@@ -345,7 +347,7 @@ def broadcast_message(conn: Connection, result: Result):
         logger.info("Broadcast message to squad members.")
     except Exception as e:
         response["status"] = False
-        response["message"] = srt(e)
+        response["message"] = str(e)
     finally:
         conn.send(response, 150)
 
