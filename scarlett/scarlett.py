@@ -61,8 +61,8 @@ class Scarlett(finian.Server):
             logger.info("Generating RSA key pair.")
             self.pubkey, self.privkey = rsa.newkeys(4096)
             logger.debug("RSA key pair is generated.")
-            pub_file = key_dir / "pub"
-            priv_file = key_dir / "priv"
+            pub_file = key_dir / "pub.pem"
+            priv_file = key_dir / "priv.pem"
             logger.info("Writing RSA keys in files.")
             with pub_file.open("wb") as f:
                 logger.debug(

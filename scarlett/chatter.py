@@ -85,7 +85,7 @@ def create_chat(conn: Connection, result: Result):
                     "}")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 130)
 
@@ -169,7 +169,7 @@ def add_member(conn: Connection, result: Result):
         logger.info(f"Member {member} has been invited to the squad.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 135)
 
@@ -200,7 +200,7 @@ def get_invitations(conn: Connection, result: Result):
         logger.info(f"Sending {str(len(squads))} invitation(s) back.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 132)
 
@@ -255,7 +255,7 @@ def accept_invitations(conn: Connection, result: Result):
         logger.info("Accepted all invitations.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 131)
 
@@ -296,7 +296,7 @@ def get_squads(conn: Connection, _):
         logger.info(f"Sending a list of {str(len(post))} squads(s) back.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 136)
 
@@ -345,7 +345,7 @@ def broadcast_message(conn: Connection, result: Result):
         logger.info("Broadcast message to squad members.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = srt(e)
     finally:
         conn.send(response, 150)
 
@@ -382,6 +382,6 @@ def get_messages(conn: Connection, result: Result):
         logger.info(f"Returning a list of {str(len(posts))} messages.")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 153)

@@ -67,7 +67,7 @@ def register(conn: Connection, result: Result):
                     "}")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 80)
 
@@ -89,7 +89,7 @@ def logout(conn: Connection, _):
         conn.session.clear()
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 79)
 
@@ -134,6 +134,6 @@ def login(conn: Connection, result: Result):
                     "}")
     except Exception as e:
         response["status"] = False
-        response["message"] = e
+        response["message"] = str(e)
     finally:
         conn.send(response, 78)
