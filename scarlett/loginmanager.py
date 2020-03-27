@@ -32,7 +32,7 @@ def register(conn: Connection, result: Result):
         display_name = result.data["display_name"]
         password = result.data["password"]
         confirm = result.data["confirm"]
-        pubkey = result.data["pubkey"]
+        # pubkey = result.data["pubkey"]
         if len(
                 zila.validate(username, [
                     zila.Length(min_length=4, max_length=16)]) +
@@ -58,10 +58,10 @@ def register(conn: Connection, result: Result):
             "pending_squads": [],
             "squads": [],
             "pending": True,
-            "pubkey": pubkey
+            # "pubkey": pubkey
         }
         _id = db.get_collection("members").insert_one(post).inserted_id
-        conn.recp_pubkey = pubkey.encode()
+        # conn.recp_pubkey = pubkey.encode()
         conn.session["username"] = username
         conn.session["id"] = _id
         logger.info("A new user has been registered: {"
@@ -87,7 +87,7 @@ def logout(conn: Connection, _):
         if "username" not in conn.session:
             logger.debug("User was not logged in.")
             raise Exception("You are not logged in!")
-        conn.recp_pubkey = None
+        # conn.recp_pubkey = None
         logger.info(f"{conn.session['username']} has been logged out.")
         conn.session.clear()
     except Exception as e:
@@ -120,7 +120,7 @@ def login(conn: Connection, result: Result):
         db_response = db.get_collection("members").find_one(
             {"username": username}, {
                 "_id": True, "username": True, "password": True,
-                "pending": True, "pubkey": True})
+                "pending": True})  # , "pubkey": True})
         if db_response is None or not pbkdf2_sha512.verify(
                 password, db_response["password"]):
             logger.debug(f"A user failed to login as {username}.")
@@ -129,7 +129,7 @@ def login(conn: Connection, result: Result):
             logger.debug(f"{username} is waiting for membership.")
             raise Exception(
                 "Your membership hasn't been reviewed by an admin yet!")
-        conn.recp_pubkey = db_response["pubkey"]
+        # conn.recp_pubkey = db_response["pubkey"]
         conn.session["username"] = username
         conn.session["id"] = db_response["_id"]
         logger.info("A new user has been logged in: {"
