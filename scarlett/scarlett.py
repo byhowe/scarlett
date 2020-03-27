@@ -68,12 +68,13 @@ class Scarlett(finian.Server):
         if self.pubkey is None or self.privkey is None:
             logger.debug("No keys were found.")
             logger.info("Generating RSA key pair.")
-            self.privkey = rsa.generate_private_key(
+            privkey = rsa.generate_private_key(
                 public_exponent=65537,
                 key_size=4096,
                 backend=default_backend()
             )
-            self.pubkey = self.privkey.public_key()
+            self.pubkey = privkey.public_key()
+            self.privkey = privkey
             logger.debug("RSA key pair is generated.")
             pub_file = key_dir / "pub.pem"
             priv_file = key_dir / "priv.pem"
