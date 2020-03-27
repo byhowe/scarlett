@@ -2,12 +2,12 @@ import base64
 import os
 from datetime import datetime
 
-import rsa
 import zila
 from bson import ObjectId
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from finian import Connection, Result, current_conn as _current_conn
 from passlib.hash import pbkdf2_sha512
@@ -154,9 +154,16 @@ def add_member(conn: Connection, result: Result):
                                                             squad_pass_salt))
         logger.debug("Squad password is being encrypted using member"
                      " candidate's RSA public key.")
-        token = rsa.encrypt(
+        token = serialization.load_pem_public_key(
+            member_entry["pubkey"],
+            backend=default_backend()
+        ).encrypt(
             squad_pass,
-            rsa.key.PublicKey.load_pkcs1(member_entry["pubkey"])
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
         )
         db.get_collection("members").update_one(
             {"username": member},

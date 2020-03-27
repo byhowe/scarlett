@@ -6,8 +6,10 @@ from typing import Optional
 
 import finian
 import pymongo
-import rsa
 from bson import ObjectId
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from finian import Connection
 
 from .logger import logger
@@ -23,7 +25,7 @@ parser.add_argument("--port", type=int, default=5409, dest="port",
 parser.add_argument("--mongo-host", type=str, default="127.0.0.1",
                     dest="mongo_host",
                     help="The address MongoDB runs on.")
-parser.add_argument("--mongo-port", type=str, default="5409",
+parser.add_argument("--mongo-port", type=int, default=5409,
                     dest="mongo_port", help="The port MongoDB runs on.")
 parser.add_argument("--mongo-user", type=str, default=os.environ["USER"],
                     dest="mongo_user",
@@ -51,15 +53,27 @@ class Scarlett(finian.Server):
                 if file.name == "pub":
                     logger.info(
                         "Public key found in %s." % str(file.absolute()))
-                    self.pubkey = rsa.key.PublicKey.load_pkcs1(key)
+                    self.pubkey = serialization.load_pem_public_key(
+                        key,
+                        backend=default_backend()
+                    )
                 if file.name == "priv":
                     logger.info(
                         "Private key found in %s." % str(file.absolute()))
-                    self.privkey = rsa.key.PrivateKey.load_pkcs1(key)
+                    self.privkey = serialization.load_pem_private_key(
+                        key,
+                        password=None,
+                        backend=default_backend()
+                    )
         if self.pubkey is None or self.privkey is None:
             logger.debug("No keys were found.")
             logger.info("Generating RSA key pair.")
-            self.pubkey, self.privkey = rsa.newkeys(4096)
+            self.privkey = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=4096,
+                backend=default_backend()
+            )
+            self.pubkey = self.privkey.public_key()
             logger.debug("RSA key pair is generated.")
             pub_file = key_dir / "pub.pem"
             priv_file = key_dir / "priv.pem"

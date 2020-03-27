@@ -61,7 +61,7 @@ def register(conn: Connection, result: Result):
             "pubkey": pubkey
         }
         _id = db.get_collection("members").insert_one(post).inserted_id
-        conn.recp_pubkey = pubkey
+        conn.recp_pubkey = pubkey.encode()
         conn.session["username"] = username
         conn.session["id"] = _id
         logger.info("A new user has been registered: {"
@@ -71,6 +71,7 @@ def register(conn: Connection, result: Result):
         response["status"] = False
         response["message"] = str(e)
     finally:
+        logger.debug(str(response))
         conn.send(response, 80)
 
 
