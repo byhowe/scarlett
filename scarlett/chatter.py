@@ -310,6 +310,36 @@ def get_squads(conn: Connection, _):
         conn.send(response, 136)
 
 
+@current_conn.protocol(180)
+def get_contacts(conn: Connection, result: Result):
+    logger.debug(f"Protocol:180 Get contacts call from"
+                 f" {conn.socket.socket.getpeername()}")
+    response = {
+        "status": True
+    }
+    try:
+        if "username" not in conn.session:
+            logger.debug("User was not logged in.")
+            raise Exception("You are not logged in!")
+        if not result.json or result.encrypted:
+            logger.warning("Result is encrypted or not in JSON format!")
+            raise Exception("Result is encrypted or not in JSON format!")
+        db: Database = current_conn.db
+        contacts = db.get_collection('members').find(
+            {"username": {"$ne": conn.session['username']}},
+            {"username": True, "_id": True}
+        )
+        post = []
+        for contact in contacts:
+            post.append({"username": contact['username'], "id": contact['_id']})
+        response["contacts"] = post
+    except Exception as e:
+        response['status'] = False
+        response['message'] = str(e)
+    finally:
+        conn.send(response, 180)
+
+
 # noinspection DuplicatedCode
 @current_conn.protocol(150)
 def broadcast_message(conn: Connection, result: Result):
