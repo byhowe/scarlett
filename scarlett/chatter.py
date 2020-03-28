@@ -311,7 +311,7 @@ def get_squads(conn: Connection, _):
 
 
 @current_conn.protocol(180)
-def get_contacts(conn: Connection, result: Result):
+def get_contacts(conn: Connection, _):
     logger.debug(f"Protocol:180 Get contacts call from"
                  f" {conn.socket.socket.getpeername()}")
     response = {
@@ -321,9 +321,6 @@ def get_contacts(conn: Connection, result: Result):
         if "username" not in conn.session:
             logger.debug("User was not logged in.")
             raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
         db: Database = current_conn.db
         contacts = db.get_collection('members').find(
             {"username": {"$ne": conn.session['username']}},
