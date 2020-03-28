@@ -328,7 +328,7 @@ def get_contacts(conn: Connection, _):
         )
         post = []
         for contact in contacts:
-            post.append({"username": contact['username'], "id": contact['_id']})
+            post.append({"username": contact['username'], "id": str(contact['_id'])})
         response["contacts"] = post
     except Exception as e:
         response['status'] = False
