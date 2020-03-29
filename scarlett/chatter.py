@@ -389,7 +389,7 @@ def broadcast_message(conn: Connection, result: Result):
 # noinspection DuplicatedCode
 @current_conn.protocol(153)
 def get_messages(conn: Connection, result: Result):
-    logger.debug(f"Protocol:153 Broadcast message call from"
+    logger.debug(f"Protocol:153 Get messages call from"
                  f" {conn.socket.socket.getpeername()}")
     response = {
         "status": True
