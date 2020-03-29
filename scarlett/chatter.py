@@ -55,41 +55,48 @@ def create_chat(conn: Connection, result: Result):
         if not result.json or result.encrypted:
             logger.warning("Result is encrypted or not in JSON format!")
             raise Exception("Result is encrypted or not in JSON format!")
-        title = result.data["title"]
+        title = result.data["title"] if "title" in result.data else None
         password = result.data["password"]
-        if len(zila.validate(title, [zila.Length(max_length=50)])) > 0:
-            logger.debug("User inputs do not meet the requirements.")
-            raise Exception("Title cannot be more than 50 characters long!")
-        logger.debug("Generating a new squad password.")
-        squad_pass = Fernet.generate_key()
-        post = {
-            "title": title,
-            "author": conn.session["username"],
-            "timestamp": datetime.utcnow(),
-            "participants": [conn.session["id"]],
-            "leaders": [conn.session["id"]],
-            "key": pbkdf2_sha512.hash(squad_pass)
-        }
-        db: Database = current_conn.db
-        squad_id = db.get_collection("squads").insert_one(post).inserted_id
-        salt = os.urandom(16)
-        logger.debug("Encrypting the newly created squad password.")
-        token = encrypt(squad_pass, generate_key(password.encode(), salt))
-        db.get_collection("members").update_one(
-            {"_id": conn.session["id"]},
-            {"$push": {"squads": {
-                "id": squad_id,
-                "key": token,
-                "salt": salt
-            }}})
-        logger.info("A new squad has been created: {"
-                    f"title={title}, id={str(squad_id)}"
-                    "}")
+        create_chat_from(conn.session["id"], password, title=title)
     except Exception as e:
         response["status"] = False
         response["message"] = str(e)
     finally:
         conn.send(response, 130)
+
+
+def create_chat_from(user_id, user_password, title=None, participant_id=None):
+    if title is not None and len(zila.validate(title, [zila.Length(max_length=50)])) > 0:
+        logger.debug("User inputs do not meet the requirements.")
+        raise Exception("Title cannot be more than 50 characters long!")
+    logger.debug("Generating a new squad password.")
+    squad_pass = Fernet.generate_key()
+    post = {
+        "timestamp": datetime.utcnow(),
+        "participants": [user_id],
+        "key": pbkdf2_sha512.hash(squad_pass)
+    }
+    if title is None:
+        post["participants"].append(participant_id)
+        post['contact'] = True
+    else:
+        post['title'] = title
+        post['contact'] = False
+    db: Database = current_conn.db
+    squad_id = db.get_collection("squads").insert_one(post).inserted_id
+    salt = os.urandom(16)
+    logger.debug("Encrypting the newly created squad password.")
+    token = encrypt(squad_pass, generate_key(user_password.encode(), salt))
+    db.get_collection("members").update_one(
+        {"_id": user_id},
+        {"$push": {"squads": {
+            "id": squad_id,
+            "key": token,
+            "salt": salt
+        }}})
+    logger.info("A new squad has been created: {"
+                f"title={title}, id={str(squad_id)}"
+                "}")
 
 
 @current_conn.protocol(135)
@@ -323,7 +330,7 @@ def get_contacts(conn: Connection, _):
             raise Exception("You are not logged in!")
         db: Database = current_conn.db
         contacts = db.get_collection('members').find(
-            {"username": {"$ne": conn.session['username']}},
+            {"username": {"$ne": conn.session['username']}, "pending": False},
             {"username": True, "_id": True}
         )
         post = []

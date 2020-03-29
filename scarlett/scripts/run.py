@@ -23,7 +23,12 @@ def main():
 
     @scar.connection_broke
     def connection_broke(conn: Connection):
-        logger.info(f"Disconnected from {conn.socket.socket.getpeername()}.")
+        message = f"Disconnected from {conn.socket.socket.getpeername()}."
+        if "username" in conn.session:
+            message += "{" \
+                       f"username={conn.session['username']}" \
+                       "}"
+        logger.info(message)
 
     logger.info("Listening for incoming connections...")
     scar.listen()
