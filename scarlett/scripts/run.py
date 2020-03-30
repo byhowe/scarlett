@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 from importlib import import_module
 
+from bson import ObjectId
 from finian import Connection
+from pymongo.database import Database
 
+from scarlett.chatting import create_chat_from
 from scarlett.logger import logger
 from scarlett.scarlett import Scarlett
+
+
+def create_main_chat(db: Database, user_id: ObjectId):
+    squad_entry = db.get_collection("squads").find_one(
+        {"title": "Main Chat"},
+        {"_id": True}
+    )
+    if squad_entry is None:
+        create_chat_from(db, user_id, "Main Chat")
 
 
 def main():
@@ -12,6 +24,7 @@ def main():
     scar = Scarlett()
     logger.info("Loading Scarlett modules...")
     with scar.conn_context():
+        create_main_chat(scar.db, scar.user_id)
         logger.debug("Loading scarlett.loginmanager...")
         import_module("scarlett.loginmanager")
         logger.debug("Loading scarlett.chatter...")

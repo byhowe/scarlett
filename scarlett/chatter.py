@@ -1,193 +1,56 @@
-import base64
 import os
 from datetime import datetime
 
-import zila
 from bson import ObjectId
-from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from finian import Connection, Result, current_conn as _current_conn
-from passlib.hash import pbkdf2_sha512
 from pymongo.database import Database
 
 from scarlett.logger import logger
+from scarlett.encryption import fernet
+from scarlett.validators import is_logged_in, is_result_valid
 
 current_conn = _current_conn.get_current_object()
 
 
-def generate_key(password: bytes, salt: bytes):
-    logger.debug("Generating Fernet compatible key.")
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-        backend=default_backend()
-    )
-    return base64.urlsafe_b64encode(kdf.derive(password))
+# @current_conn.protocol(130)
+# def create_chat(conn: Connection, result: Result):
+#     logger.debug(f"Protocol:130 Create chat call from"
+#                  f" {conn.socket.socket.getpeername()}")
+#     response = {
+#         "status": True,
+#         "message": "You have successfully created a chat room."
+#     }
+#     try:
+#         is_logged_in(conn)
+#         is_result_valid(result)
+#         title = result.data["title"]
+#         create_chat_from(conn.session["id"], title=title)
+#     except Exception as e:
+#         response["status"] = False
+#         response["message"] = str(e)
+#     finally:
+#         conn.send(response, 130)
 
 
-def encrypt(data: bytes, key: bytes):
-    logger.debug("Encrypting using Fernet.")
-    return Fernet(key).encrypt(data)
-
-
-def decrypt(token: bytes, key: bytes):
-    logger.debug("Decrypting using Fernet.")
-    return Fernet(key).decrypt(token)
-
-
-@current_conn.protocol(130)
-def create_chat(conn: Connection, result: Result):
-    logger.debug(f"Protocol:130 Create chat call from"
-                 f" {conn.socket.socket.getpeername()}")
-    response = {
-        "status": True,
-        "message": "You have successfully created a chat room."
-    }
-    try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
-        title = result.data["title"] if "title" in result.data else None
-        password = result.data["password"]
-        create_chat_from(conn.session["id"], password, title=title)
-    except Exception as e:
-        response["status"] = False
-        response["message"] = str(e)
-    finally:
-        conn.send(response, 130)
-
-
-def create_chat_from(user_id, user_password, title=None, participant_id=None):
-    if title is not None and len(zila.validate(title, [zila.Length(max_length=50)])) > 0:
-        logger.debug("User inputs do not meet the requirements.")
-        raise Exception("Title cannot be more than 50 characters long!")
-    logger.debug("Generating a new squad password.")
-    squad_pass = Fernet.generate_key()
-    post = {
-        "timestamp": datetime.utcnow(),
-        "participants": [user_id],
-        "key": pbkdf2_sha512.hash(squad_pass)
-    }
-    if title is None:
-        post["participants"].append(participant_id)
-        post['contact'] = True
-    else:
-        post['title'] = title
-        post['contact'] = False
-    db: Database = current_conn.db
-    squad_id = db.get_collection("squads").insert_one(post).inserted_id
-    salt = os.urandom(16)
-    logger.debug("Encrypting the newly created squad password.")
-    token = encrypt(squad_pass, generate_key(user_password.encode(), salt))
-    db.get_collection("members").update_one(
-        {"_id": user_id},
-        {"$push": {"squads": {
-            "id": squad_id,
-            "key": token,
-            "salt": salt
-        }}})
-    logger.info("A new squad has been created: {"
-                f"title={title}, id={str(squad_id)}"
-                "}")
-
-
-@current_conn.protocol(135)
-def add_member(conn: Connection, result: Result):
-    logger.debug(f"Protocol:135 Add member call from"
-                 f" {conn.socket.socket.getpeername()}")
-    response = {
-        "status": True,
-        "message": "You have successfully added a member."
-    }
-    try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted  or not in JSON format!")
-        squad_id = ObjectId(result.data["squad"])
-        member = result.data["member"]
-        password = result.data["password"]
-        db: Database = current_conn.db
-        squad_entry = db.get_collection("squads").find_one(
-            {"_id": squad_id},
-            {"leaders": True}
-        )
-        if squad_entry is None:
-            logger.debug("Squad does not exist: {"
-                         f"id={str(squad_id)}"
-                         "}")
-            raise Exception("This squad does not exist!")
-        if conn.session["_id"] not in squad_entry["leaders"]:
-            logger.debug(f"User {conn.session['username']} tried to access"
-                         " without authorization.")
-            raise Exception("You are not authorized!")
-        member_entry = db.get_collection("members").find_one(
-            {"username": member, "pubkey": True,
-             "squads": True, "pending_squads": True})
-        if member_entry is None:
-            logger.debug(f"Member {member} does not exist.")
-            raise Exception("Member does not exist!")
-        for squad in (
-                member_entry["squads"] +
-                member_entry["pending_squads"]
-        ):
-            if squad["id"] == squad_id:
-                logger.debug(
-                    f"Member {member} is already present in the squad")
-                raise Exception(
-                    "This member is already present in the squad!")
-        alpha = db.get_collection("members").find_one(
-            {"username": conn.session["username"]},
-            {"_id": True, "squads": True})
-        squad_pass_token = None
-        squad_pass_salt = None
-        for squad in alpha["squads"]:
-            if squad["id"] == squad_id:
-                squad_pass_token = squad["key"]
-                squad_pass_salt = squad["salt"]
-                break
-        logger.debug("Squad password is being decrypted.")
-        squad_pass = decrypt(squad_pass_token, generate_key(password,
-                                                            squad_pass_salt))
-        logger.debug("Squad password is being encrypted using member"
-                     " candidate's RSA public key.")
-        token = serialization.load_pem_public_key(
-            member_entry["pubkey"],
-            backend=default_backend()
-        ).encrypt(
-            squad_pass,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            )
-        )
-        db.get_collection("members").update_one(
-            {"username": member},
-            {"$push": {"pending_squads": {
-                "id": squad_id,
-                "key": token
-            }}})
-        mem_conn = current_conn.find_member(username=member)
-        if mem_conn is not None:
-            logger.info("Sending notification to the member candidate.")
-            mem_conn.send(None, 140)
-        logger.info(f"Member {member} has been invited to the squad.")
-    except Exception as e:
-        response["status"] = False
-        response["message"] = str(e)
-    finally:
-        conn.send(response, 135)
+# @current_conn.protocol(135)
+# def add_member(conn: Connection, result: Result):
+#     logger.debug(f"Protocol:135 Add member call from"
+#                  f" {conn.socket.socket.getpeername()}")
+#     response = {
+#         "status": True,
+#         "message": "You have successfully added a member."
+#     }
+#     try:
+#         is_logged_in(conn)
+#         is_result_valid(result)
+#         squad_id = ObjectId(result.data["squad_id"])
+#         member_id = ObjectId(result.data["member_id"])
+#         add_member_to_chat(member_id, squad_id)
+#     except Exception as e:
+#         response["status"] = False
+#         response["message"] = str(e)
+#     finally:
+#         conn.send(response, 135)
 
 
 @current_conn.protocol(132)
@@ -198,12 +61,8 @@ def get_invitations(conn: Connection, result: Result):
         "status": True
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted  or not in JSON format!")
+        is_logged_in(conn)
+        is_result_valid(result)
         db: Database = current_conn.db
         member = db.get_collection("members").find_one(
             {"username": conn.session["username"]},
@@ -230,12 +89,8 @@ def accept_invitations(conn: Connection, result: Result):
         "message": "You have successfully accepted all invitations."
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_logged_in(conn)
+        is_result_valid(result)
         password = result.data["password"]
         squads = result.data["squads"]
         posts = []
@@ -250,7 +105,7 @@ def accept_invitations(conn: Connection, result: Result):
             logger.debug("Encrypting the password: {"
                          f"id={squad['id']}"
                          "}")
-            token = encrypt(key, generate_key(password.encode(), salt))
+            token = fernet.encrypt(key, fernet.generate_key_from_password(password.encode(), salt))
             posts.append({
                 "id": squad_id,
                 "key": token,
@@ -284,9 +139,7 @@ def get_squads(conn: Connection, _):
         "status": True
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("Your are not logged in!")
+        is_logged_in(conn)
         db: Database = current_conn.db
         post = []
         for squad in db.get_collection("squads").find(
@@ -325,9 +178,7 @@ def get_contacts(conn: Connection, _):
         "status": True
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
+        is_logged_in(conn)
         db: Database = current_conn.db
         contacts = db.get_collection('members').find(
             {"username": {"$ne": conn.session['username']}, "pending": False},
@@ -353,12 +204,8 @@ def broadcast_message(conn: Connection, result: Result):
         "status": True
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_logged_in(conn)
+        is_result_valid(result)
         squad_id = ObjectId(result.data["squad"])
         message = result.data["message"]
         db: Database = current_conn.db
@@ -402,12 +249,8 @@ def get_messages(conn: Connection, result: Result):
         "status": True
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_logged_in(conn)
+        is_result_valid(result)
         squad_id = ObjectId(result.data["squad"])
         posts = []
         db: Database = current_conn.db

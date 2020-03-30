@@ -6,6 +6,7 @@ from finian import Connection, Result, current_conn as _current_conn
 from passlib.hash import pbkdf2_sha512
 from pymongo.database import Database
 
+from scarlett.encryption import rsa
 from scarlett.logger import logger
 
 current_conn = _current_conn.get_current_object()
@@ -29,15 +30,12 @@ def register(conn: Connection, result: Result):
             logger.warning("Result is encrypted or not in JSON format!")
             raise Exception("Result is encrypted or not in JSON format!")
         username = result.data["username"]
-        display_name = result.data["display_name"]
         password = result.data["password"]
         confirm = result.data["confirm"]
         # pubkey = result.data["pubkey"]
         if len(
                 zila.validate(username, [
                     zila.Length(min_length=4, max_length=16)]) +
-                zila.validate(display_name, [
-                    zila.Length(max_length=16)]) +
                 zila.validate(password, [
                     zila.Length(min_length=6, max_length=128)])) > 0 \
                 or confirm != password:
@@ -51,9 +49,7 @@ def register(conn: Connection, result: Result):
         password = pbkdf2_sha512.hash(password)
         post = {
             "username": username,
-            "display_name": display_name,
             "password": password,
-            "admin": False,
             "timestamp": datetime.utcnow(),
             "pending_squads": [],
             "squads": [],
@@ -120,7 +116,7 @@ def login(conn: Connection, result: Result):
         db_response = db.get_collection("members").find_one(
             {"username": username}, {
                 "_id": True, "username": True, "password": True,
-                "pending": True})  # , "pubkey": True})
+                "pending": True, "public_key": True})
         if db_response is None or not pbkdf2_sha512.verify(
                 password, db_response["password"]):
             logger.debug(f"A user failed to login as {username}.")
@@ -129,6 +125,15 @@ def login(conn: Connection, result: Result):
             logger.debug(f"{username} is waiting for membership.")
             raise Exception(
                 "Your membership hasn't been reviewed by an admin yet!")
+        if "public_key" not in db_response:
+            public_key, private_key = rsa.generate_key_pair()
+            db.get_collection("members").update_one(
+                {"_id": db_response["_id"]},
+                {"$set": {
+                    "public_key": rsa.serialize_public_key(public_key),
+                    "private_key": rsa.serialize_private_key(private_key, password.encode())
+                }}
+            )
         # conn.recp_pubkey = db_response["pubkey"]
         conn.session["username"] = username
         conn.session["id"] = db_response["_id"]
