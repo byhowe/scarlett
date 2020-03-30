@@ -59,7 +59,7 @@ def encrypt(public_key: RSAPublicKey, data: bytes) -> bytes:
 
 
 def decrypt(private_key: RSAPrivateKey, data: bytes) -> bytes:
-    private_key.decrypt(
+    return private_key.decrypt(
         data,
         padding=padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),

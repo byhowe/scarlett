@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import time
 from typing import Optional
 
 import finian
@@ -48,10 +49,15 @@ class Scarlett(finian.Server):
         if user_entry is None:
             public_key, private_key = rsa.generate_key_pair()
             self.user_id = db.get_collection("members").insert_one({
+                "admin": True,
                 "username": args.key_user,
+                "pending": False,
+                "squads": [],
+                "pending_squads": [],
                 "public_key": rsa.serialize_public_key(public_key),
                 "private_key": rsa.serialize_private_key(private_key, args.key_pass.encode())
             }).inserted_id
+            time.sleep(0.5)
         else:
             self.user_id = user_entry["_id"]
             public_key, private_key = (rsa.load_public_key(user_entry["public_key"]),

@@ -6,6 +6,7 @@ from finian import Connection, Result, current_conn as _current_conn
 from passlib.hash import pbkdf2_sha512
 from pymongo.database import Database
 
+from scarlett.chatting import add_member_to_chat, accept_pending_squads, create_chat_from
 from scarlett.encryption import rsa
 from scarlett.logger import logger
 
@@ -52,6 +53,7 @@ def register(conn: Connection, result: Result):
             "password": password,
             "timestamp": datetime.utcnow(),
             "pending_squads": [],
+            "admin": False,
             "squads": [],
             "pending": True,
             # "pubkey": pubkey
@@ -116,9 +118,9 @@ def login(conn: Connection, result: Result):
         db_response = db.get_collection("members").find_one(
             {"username": username}, {
                 "_id": True, "username": True, "password": True,
-                "pending": True, "public_key": True})
+                "pending": True, "public_key": True, "admin": True})
         if db_response is None or not pbkdf2_sha512.verify(
-                password, db_response["password"]):
+                password, db_response["password"]) or db_response["admin"]:
             logger.debug(f"A user failed to login as {username}.")
             raise Exception("Wrong username or password!")
         if db_response["pending"]:
@@ -134,6 +136,15 @@ def login(conn: Connection, result: Result):
                     "private_key": rsa.serialize_private_key(private_key, password.encode())
                 }}
             )
+            add_member_to_chat(db, db_response["_id"], current_conn.main_squad,
+                               alpha_id=current_conn.user_id, alpha_password=current_conn.args.key_pass.encode())
+            contact_entry = db.get_collection("members").find(
+                {"pending": False, "admin": False, "_id": {"$ne": db_response["_id"]}},
+                {"_id": True}
+            )
+            for contact in contact_entry:
+                create_chat_from(db, db_response["_id"], participant_id=contact["_id"])
+        accept_pending_squads(db, db_response["_id"], password.encode())
         # conn.recp_pubkey = db_response["pubkey"]
         conn.session["username"] = username
         conn.session["id"] = db_response["_id"]

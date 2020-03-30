@@ -5,26 +5,30 @@ from bson import ObjectId
 from finian import Connection
 from pymongo.database import Database
 
-from scarlett.chatting import create_chat_from
+from scarlett.chatting import create_chat_from, accept_pending_squads
 from scarlett.logger import logger
 from scarlett.scarlett import Scarlett
 
 
-def create_main_chat(db: Database, user_id: ObjectId):
+def create_main_chat(db: Database, user_id: ObjectId, password):
     squad_entry = db.get_collection("squads").find_one(
         {"title": "Main Chat"},
         {"_id": True}
     )
     if squad_entry is None:
-        create_chat_from(db, user_id, "Main Chat")
+        squad_id = create_chat_from(db, user_id, "Main Chat")
+        accept_pending_squads(db, user_id, password, add_as_participant=False)
+    else:
+        squad_id = squad_entry["_id"]
+    return squad_id
 
 
 def main():
     logger.debug("Initializing Scarlett...")
     scar = Scarlett()
     logger.info("Loading Scarlett modules...")
+    scar.main_squad = create_main_chat(scar.db, scar.user_id, scar.args.key_pass.encode())
     with scar.conn_context():
-        create_main_chat(scar.db, scar.user_id)
         logger.debug("Loading scarlett.loginmanager...")
         import_module("scarlett.loginmanager")
         logger.debug("Loading scarlett.chatter...")

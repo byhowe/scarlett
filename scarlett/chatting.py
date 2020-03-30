@@ -10,7 +10,10 @@ from scarlett.logger import logger
 from scarlett.validators import is_member_valid
 
 
-def create_chat_from(db: Database, user_id: ObjectId, title: str = None, participant_id: ObjectId = None):
+def create_chat_from(db: Database,
+                     user_id: ObjectId,
+                     title: str = None,
+                     participant_id: ObjectId = None,):
     if title is not None and len(zila.validate(title, [zila.Length(max_length=50)])) > 0:
         logger.debug("User inputs do not meet the requirements.")
         raise Exception("Title cannot be more than 50 characters long!")
@@ -18,20 +21,22 @@ def create_chat_from(db: Database, user_id: ObjectId, title: str = None, partici
     squad_pass = fernet.generate_key()
     post = {
         "timestamp": datetime.utcnow(),
-        "participants": [user_id],
+        "participants": [],
         "key": pbkdf2_sha512.hash(squad_pass)
     }
     if title is None:
-        post["participants"].append(participant_id)
         post['contact'] = True
     else:
         post['title'] = title
         post['contact'] = False
     squad_id = db.get_collection("squads").insert_one(post).inserted_id
+    if title is None:
+        add_member_to_chat(db, participant_id, squad_id, password=squad_pass)
     add_member_to_chat(db, user_id, squad_id, password=squad_pass)
     logger.info("A new squad has been created: {"
                 f"title={title}, id={str(squad_id)}"
                 "}")
+    return squad_id
 
 
 def add_member_to_chat(db: Database,
@@ -39,7 +44,7 @@ def add_member_to_chat(db: Database,
                        squad_id: ObjectId,
                        password: bytes = None,
                        alpha_id: ObjectId = None,
-                       alpha_password: bytes = None):
+                       alpha_password: bytes = None,):
     squad_entry = db.get_collection("squads").find_one(
         {"_id": squad_id},
         {"_id": True}
@@ -54,8 +59,8 @@ def add_member_to_chat(db: Database,
     #                  " without authorization.")
     #     raise Exception("You are not authorized!")
     member_entry = db.get_collection("members").find_one(
-        {"_id": member_id,
-         "squads": True, "pending_squads": True})
+        {"_id": member_id},
+        {"squads": True, "pending_squads": True})
     if member_entry is None:
         logger.debug(f"Member does not exist.")
         raise Exception("Member does not exist!")
@@ -94,10 +99,43 @@ def add_member_to_chat(db: Database,
         {"public_key": True}
     )["public_key"]
     member_public_key = rsa.load_public_key(pem_public_key)
-    db.get_collection("member").update_one(
+    db.get_collection("members").update_one(
         {"_id": member_id},
         {"$push": {"pending_squads": {
             "id": squad_id,
             "key": rsa.encrypt(member_public_key, password)
         }}}
     )
+
+
+def accept_pending_squads(db: Database, member_id: ObjectId, password: bytes, add_as_participant=True):
+    member_entry = db.get_collection("members").find_one(
+        {"_id": member_id},
+        {"pending_squads": True, "private_key": True, "public_key": True}
+    )
+    if member_entry is None:
+        logger.debug("Member does not exist.")
+        raise Exception("Member does not exist!")
+    private_key = rsa.load_private_key(member_entry["private_key"], password)
+    public_key = rsa.load_public_key(member_entry["public_key"])
+    post = []
+    squad_ids = []
+    for squad in member_entry["pending_squads"]:
+        squad_ids.append(squad["id"])
+        post.append({
+            "key": rsa.encrypt(public_key, rsa.decrypt(private_key, squad["key"])),
+            "id": squad["id"]
+        })
+    db.get_collection("members").update_one(
+        {"_id": member_id},
+        {
+            "$push": {"squads": {"$each": post}},
+            "$pullAll": {"pending_squads": member_entry["pending_squads"]}
+        }
+    )
+    if add_as_participant:
+        db.get_collection("squads").update_many(
+            {"_id": {"$in": squad_ids}},
+            {"$push": {"participants": member_id}}
+        )
+    logger.info("Accepted all invitations.")
