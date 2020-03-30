@@ -113,7 +113,7 @@ def get_squads_for(conn, db, contact=False):
             {"_id": {"$in": squad["participants"]}},
             {"_id": True, "username": True}
         )
-        post_ = {"id": squad["_id"]}
+        post_ = {"id": str(squad["_id"])}
         if contact:
             post_["title"] = members_entry.next()["username"]
         else:
@@ -121,7 +121,7 @@ def get_squads_for(conn, db, contact=False):
             for member in members_entry:
                 squad_participants.append({
                     "username": member["username"],
-                    "id": member["_id"]
+                    "id": str(member["_id"])
                 })
             post_["title"] = squad["title"]
             post_["participants"] = squad_participants
