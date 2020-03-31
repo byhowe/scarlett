@@ -34,7 +34,7 @@ def main():
         {"_id": scar.user_id},
         {"main_chat": True}
     )
-    scar.main_squad = create_main_chat(scar.db, scar.args["main_chat_title"],
+    scar.main_squad = create_main_chat(scar.db, scar.args.main_chat_title,
                                        admin["main_chat"] if "main_chat" in admin else None,
                                        scar.user_id,
                                        scar.args.key_pass.encode())
