@@ -104,8 +104,11 @@ def get_squads_for(conn, db, contact=False):
         {"_id": conn.session["id"]},
         {"squads": True}
     )
+    squad_ids = []
+    for squad in user_entry["squads"]:
+        squad_ids.append(squad["id"])
     squads_entry = db.get_collection("squads").find(
-        {"_id": {"$in": user_entry["squads"]}, "contact": contact},
+        {"_id": {"$in": squad_ids}, "contact": contact},
         {"_id": True, "title": True, "participants": True}
     )
     for squad in squads_entry:
@@ -115,7 +118,11 @@ def get_squads_for(conn, db, contact=False):
         )
         post_ = {"id": str(squad["_id"])}
         if contact:
-            post_["title"] = members_entry.next()["username"]
+            for member in members_entry:
+                if member["_id"] != conn.session["id"]:
+                    post_["title"] = member["username"]
+            if "title" not in post_:
+                continue
         else:
             squad_participants = []
             for member in members_entry:
@@ -141,6 +148,7 @@ def get_contacts(conn: Connection, _):
         db: Database = current_conn.db
         post = get_squads_for(conn, db, contact=True)
         response["contacts"] = post
+        logger.info(f"Sending a list of {str(len(post))} contact(s) back.")
     except Exception as e:
         response['status'] = False
         response['message'] = str(e)
@@ -170,22 +178,26 @@ def broadcast_message(conn: Connection, result: Result):
             logger.debug("Squad does not exist.")
             raise Exception("This squad does not exist!")
         members = squad_entry["participants"]
+        if conn.session["id"] not in members:
+            logger.debug(f"{conn.session['username']} tried to send unauthorized message.")
+            raise Exception("Unauthorized squad!")
         logger.debug(f"Sending message to {str(len(members))} members.")
         for member in members:
             mem_conn: Connection = current_conn.find_member(
                 member_id=member)
-            mem_conn.send({
-                "message": message,
-                "from": conn.session["username"],
-                "squad": str(squad_id)
-            }, 151)
+            if mem_conn is not None:
+                mem_conn.send({
+                    "message": message,
+                    "from": conn.session["username"],
+                    "squad": str(squad_id)
+                }, 151)
         db.get_collection("messages").insert_one({
             "from": conn.session["username"],
             "timestamp": datetime.utcnow(),
             "message": message,
             "squad": squad_id
         })
-        logger.info("Broadcast message to squad members.")
+        logger.info("Broadcasting message to squad members.")
     except Exception as e:
         response["status"] = False
         response["message"] = str(e)
