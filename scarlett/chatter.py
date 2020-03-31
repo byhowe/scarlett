@@ -192,7 +192,7 @@ def broadcast_message(conn: Connection, result: Result):
                     "squad": str(squad_id)
                 }, 151)
         db.get_collection("messages").insert_one({
-            "from": conn.session["username"],
+            "from": conn.session["id"],
             "timestamp": datetime.utcnow(),
             "message": message,
             "squad": squad_id

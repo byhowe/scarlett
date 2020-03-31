@@ -128,13 +128,15 @@ class Scarlett(finian.Server):
             "Searching for an online user: {'username': %s, 'id': %s}" %
             (str(username), str(member_id))
         )
-        for client in self.clients:
+        for client in self.clients.copy():
             if (
+                    username is not None and
                     "username" in client.session and
                     username == client.session["username"]
             ):
                 return client
             elif (
+                    member_id is not None and
                     "id" in client.session and
                     member_id == client.session["id"]
             ):
