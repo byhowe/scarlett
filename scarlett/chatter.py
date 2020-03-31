@@ -182,21 +182,24 @@ def broadcast_message(conn: Connection, result: Result):
             logger.debug(f"{conn.session['username']} tried to send unauthorized message.")
             raise Exception("Unauthorized squad!")
         logger.debug(f"Sending message to {str(len(members))} members.")
+        timestamp = datetime.utcnow()
+        message_id = db.get_collection("messages").insert_one({
+            "from": conn.session["username"],
+            "timestamp": timestamp,
+            "message": message,
+            "squad": squad_id
+        }).inserted_id
         for member in members:
             mem_conn: Connection = current_conn.find_member(
                 member_id=member)
             if mem_conn is not None:
                 mem_conn.send({
                     "message": message,
+                    "timestamp": str(timestamp),
                     "from": conn.session["username"],
+                    "id": str(message_id),
                     "squad": str(squad_id)
                 }, 151)
-        db.get_collection("messages").insert_one({
-            "from": conn.session["username"],
-            "timestamp": datetime.utcnow(),
-            "message": message,
-            "squad": squad_id
-        })
         logger.info("Broadcasting message to squad members.")
     except Exception as e:
         response["status"] = False
