@@ -223,7 +223,7 @@ def get_messages(conn: Connection, result: Result):
             "squad": squad_id
         }).limit(50).sort("timestamp"):
             posts.append({
-                "from": message["from"],
+                "from": str(message["from"]),
                 "timestamp": str(message["timestamp"]),
                 "message": message["message"],
                 "id": str(message["_id"])
