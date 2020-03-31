@@ -192,7 +192,7 @@ def broadcast_message(conn: Connection, result: Result):
                     "squad": str(squad_id)
                 }, 151)
         db.get_collection("messages").insert_one({
-            "from": conn.session["id"],
+            "from": conn.session["username"],
             "timestamp": datetime.utcnow(),
             "message": message,
             "squad": squad_id
@@ -223,7 +223,7 @@ def get_messages(conn: Connection, result: Result):
             "squad": squad_id
         }).limit(50).sort("timestamp"):
             posts.append({
-                "from": str(message["from"]),
+                "from": message["from"],
                 "timestamp": str(message["timestamp"]),
                 "message": message["message"],
                 "id": str(message["_id"])
