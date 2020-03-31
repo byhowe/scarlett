@@ -13,6 +13,8 @@ from .encryption import rsa
 from .logger import logger
 
 parser = argparse.ArgumentParser(prog="Scarlett")
+parser.add_argument("--main-chat-title", type=str, dest="main_chat_title", default="Main Chat",
+                    help="Title of the main chat squad.")
 parser.add_argument("--key-pass", type=str, dest="key_pass",
                     help="Password to encrypt and decrypt the private key.")
 parser.add_argument("--key-user", type=str, dest="key_user", default="keen",
