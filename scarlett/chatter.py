@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 
 from bson import ObjectId
@@ -189,23 +190,32 @@ def broadcast_message(conn: Connection, result: Result):
             "message": message,
             "squad": squad_id
         }).inserted_id
-        for member in members:
-            mem_conn: Connection = current_conn.find_member(
-                member_id=member)
-            if mem_conn is not None:
-                mem_conn.send({
-                    "message": message,
-                    "timestamp": str(timestamp),
-                    "from": conn.session["username"],
-                    "id": str(message_id),
-                    "squad": str(squad_id)
-                }, 151)
+        for mem_conn in current_conn.clients.copy():
+            mem_conn: Connection
+            if "id" in mem_conn.session and mem_conn.session["id"] in members:
+                t = threading.Thread(
+                    target=send_over_mem_conn,
+                    args=(conn, mem_conn, message, message_id, squad_id, timestamp)
+                )
+                t.daemon = True
+                t.start()
         logger.info("Broadcasting message to squad members.")
     except Exception as e:
         response["status"] = False
         response["message"] = str(e)
     finally:
         conn.send(response, 150)
+
+
+def send_over_mem_conn(conn, mem_conn, message, message_id, squad_id, timestamp):
+    if mem_conn is not None:
+        mem_conn.send({
+            "message": message,
+            "timestamp": str(timestamp),
+            "from": conn.session["username"],
+            "id": str(message_id),
+            "squad": str(squad_id)
+        }, 151)
 
 
 # noinspection DuplicatedCode
