@@ -145,7 +145,8 @@ def login(conn: Connection, result: Result):
             for contact in contact_entry:
                 create_chat_from(db, db_response["_id"], participant_id=contact["_id"])
         accept_pending_squads(db, db_response["_id"], password.encode())
-        response["you"] = str(db_response["_id"])
+        response["your_id"] = str(db_response["_id"])
+        response["you"] = db_response["username"]
         # conn.recp_pubkey = db_response["pubkey"]
         conn.session["username"] = username
         conn.session["id"] = db_response["_id"]
