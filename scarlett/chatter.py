@@ -218,7 +218,7 @@ def send_over_mem_conn(conn, mem_conn, message, message_id, squad_id, timestamp)
                 "id": str(message_id),
                 "squad": str(squad_id)
             }, 151)
-        except BrokenPipeError:
+        except (BrokenPipeError, TimeoutError):
             current_conn.clients.remove(mem_conn)
 
 
