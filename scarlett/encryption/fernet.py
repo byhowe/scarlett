@@ -25,11 +25,9 @@ def generate_key() -> bytes:
 
 
 def encrypt(data: bytes, key: bytes):
-    logger.debug("Encrypting using Fernet.")
     return Fernet(key).encrypt(data)
 
 
 def decrypt(token: bytes, key: bytes):
-    logger.debug("Decrypting using Fernet.")
     return Fernet(key).decrypt(token)
 
