@@ -242,7 +242,7 @@ def get_messages(conn: Connection, result: Result):
             posts.append({
                 "from": message["from"],
                 "timestamp": str(message["timestamp"]),
-                "message": fernet.decrypt(message["message"], conn.session["squads"][squad_id]),
+                "message": fernet.decrypt(message["message"], conn.session["squads"][squad_id]).decode(),
                 "id": str(message["_id"])
             })
         response["squad"] = str(squad_id)
