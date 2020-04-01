@@ -245,8 +245,9 @@ def get_messages(conn: Connection, result: Result):
                 "message": fernet.decrypt(message["message"], conn.session["squads"][squad_id]).decode(),
                 "id": str(message["_id"])
             })
+        posts.reverse()
         response["squad"] = str(squad_id)
-        response["messages"] = posts.reverse()
+        response["messages"] = posts
         logger.info(f"Returning a list of {str(len(posts))} messages.")
     except Exception as e:
         response["status"] = False
