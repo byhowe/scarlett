@@ -238,7 +238,7 @@ def get_messages(conn: Connection, result: Result):
         db: Database = current_conn.db
         for message in db.get_collection("messages").find({
             "squad": squad_id
-        }).sort("timestamp").limit(70):
+        }).sort({"timestamp": -1}).limit(70):
             posts.append({
                 "from": message["from"],
                 "timestamp": str(message["timestamp"]),
@@ -246,7 +246,7 @@ def get_messages(conn: Connection, result: Result):
                 "id": str(message["_id"])
             })
         response["squad"] = str(squad_id)
-        response["messages"] = posts
+        response["messages"] = posts.reverse()
         logger.info(f"Returning a list of {str(len(posts))} messages.")
     except Exception as e:
         response["status"] = False
