@@ -4,6 +4,7 @@ from datetime import datetime
 from bson import ObjectId
 from finian import Connection, Result, current_conn as _current_conn
 from pymongo.database import Database
+from scarlett.encryption import rsa, fernet
 
 from scarlett.logger import logger
 from scarlett.validators import is_logged_in, is_result_valid
@@ -187,7 +188,7 @@ def broadcast_message(conn: Connection, result: Result):
         message_id = db.get_collection("messages").insert_one({
             "from": conn.session["username"],
             "timestamp": timestamp,
-            "message": message,
+            "message": fernet.encrypt(message.encode(), conn.session["squads"][squad_id]),
             "squad": squad_id
         }).inserted_id
         for mem_conn in current_conn.clients.copy():
@@ -241,7 +242,7 @@ def get_messages(conn: Connection, result: Result):
             posts.append({
                 "from": message["from"],
                 "timestamp": str(message["timestamp"]),
-                "message": message["message"],
+                "message": fernet.decrypt(message["message"], conn.session["squads"][squad_id]),
                 "id": str(message["_id"])
             })
         response["squad"] = str(squad_id)

@@ -116,9 +116,12 @@ def login(conn: Connection, result: Result):
         password = result.data["password"]
         db: Database = current_conn.db
         db_response = db.get_collection("members").find_one(
-            {"username": username}, {
+            {"username": username},
+            {
                 "_id": True, "username": True, "password": True,
-                "pending": True, "public_key": True, "admin": True})
+                "pending": True, "public_key": True, "admin": True
+            }
+        )
         if db_response is None or not pbkdf2_sha512.verify(
                 password, db_response["password"]) or db_response["admin"]:
             logger.debug(f"A user failed to login as {username}.")
@@ -145,6 +148,17 @@ def login(conn: Connection, result: Result):
             for contact in contact_entry:
                 create_chat_from(db, db_response["_id"], participant_id=contact["_id"])
         accept_pending_squads(db, db_response["_id"], password.encode())
+
+        conn.session["squads"] = {}
+        member_entry = db.get_collection("members").find_one(
+            {"_id": db_response["_id"]},
+            {"squads": True, "private_key": True}
+        )
+        private_key = rsa.load_private_key(member_entry["private_key"], password=password.encode())
+        for squad in member_entry["squads"]:
+            key = rsa.decrypt(private_key, squad["key"])
+            conn.session["squads"][squad["id"]] = key
+
         response["your_id"] = str(db_response["_id"])
         response["you"] = db_response["username"]
         # conn.recp_pubkey = db_response["pubkey"]
