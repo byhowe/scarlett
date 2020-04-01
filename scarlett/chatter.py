@@ -237,7 +237,7 @@ def get_messages(conn: Connection, result: Result):
         db: Database = current_conn.db
         for message in db.get_collection("messages").find({
             "squad": squad_id
-        }).limit(50).sort("timestamp"):
+        }).sort("timestamp"):
             posts.append({
                 "from": message["from"],
                 "timestamp": str(message["timestamp"]),
