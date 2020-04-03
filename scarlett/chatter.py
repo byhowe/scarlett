@@ -210,16 +210,13 @@ def broadcast_message(conn: Connection, result: Result):
 
 def send_over_mem_conn(conn, mem_conn, message, message_id, squad_id, timestamp):
     if mem_conn is not None:
-        try:
-            mem_conn.send({
-                "message": message,
-                "timestamp": str(timestamp),
-                "from": conn.session["username"],
-                "id": str(message_id),
-                "squad": str(squad_id)
-            }, 151)
-        except (BrokenPipeError, TimeoutError):
-            current_conn.clients.remove(mem_conn)
+        mem_conn.send({
+            "message": message,
+            "timestamp": str(timestamp),
+            "from": conn.session["username"],
+            "id": str(message_id),
+            "squad": str(squad_id)
+        }, 151)
 
 
 # noinspection DuplicatedCode
