@@ -172,3 +172,54 @@ def login(conn: Connection, result: Result):
         response["message"] = str(e)
     finally:
         conn.send(response, 78)
+
+
+@current_conn.protocol(200)
+def change_password(conn: Connection, result: Result):
+    logger.debug(f"Protocol:200 Change password call from"
+                 f" {conn.socket.socket.getpeername()}")
+    response = {
+        "status": True,
+        "message": "Successfully change password."
+    }
+    try:
+        if "username" not in conn.session:
+            logger.debug(f"User was not logged in.")
+            raise Exception("You are not logged in!")
+        if not result.json or result.encrypted:
+            logger.warning("Result is encrypted or not in JSON format!")
+            raise Exception("Result is encrypted or not in JSON format!")
+        cur_password = result.data["cur_password"]
+        new_password = result.data["new_password"]
+        confirm_password = result.data["confirm_password"]
+        db: Database = current_conn.db
+        member_entry = db.get_collection("members").find_one(
+            {"_id": conn.session["_id"]},
+            {"password": True, "private_key": True, "squads": True}
+        )
+        if not pbkdf2_sha512.verify(cur_password, member_entry["password"]):
+            logger.debug(f"Incorrect password.")
+            raise Exception("Incorrect password!")
+
+        if not new_password == confirm_password:
+            logger.debug("New passwords do not match.")
+            raise Exception("Your new passwords do not match!")
+
+        private_key = rsa.load_private_key(member_entry["private_key"], password=cur_password.encode())
+
+        db.get_collection("members").update_one(
+            {"_id": conn.session["_id"]},
+            {"$set": {
+                "private_key": rsa.serialize_private_key(private_key, password=new_password.encode()),
+                "password": pbkdf2_sha512.hash(new_password)
+            }}
+        )
+
+        logger.info("A user has changed password: {"
+                    f"username={conn.session['username']}, id={str(conn.session['_id'])}"
+                    "}")
+    except Exception as e:
+        response["status"] = False
+        response["message"] = str(e)
+    finally:
+        conn.send(response, 200)
