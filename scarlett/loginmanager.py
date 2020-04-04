@@ -199,7 +199,7 @@ def change_password(conn: Connection, result: Result):
         private_key = rsa.load_private_key(member_entry["private_key"], password=cur_password.encode())
 
         db.get_collection("members").update_one(
-            {"_id": conn.session["_id"]},
+            {"_id": conn.session["id"]},
             {"$set": {
                 "private_key": rsa.serialize_private_key(private_key, password=new_password.encode()),
                 "password": pbkdf2_sha512.hash(new_password)
