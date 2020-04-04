@@ -9,6 +9,7 @@ from pymongo.database import Database
 from scarlett.chatting import add_member_to_chat, accept_pending_squads, create_chat_from
 from scarlett.encryption import rsa
 from scarlett.logger import logger
+from scarlett.validators import is_logged_in, is_result_valid
 
 current_conn = _current_conn.get_current_object()
 
@@ -27,9 +28,7 @@ def register(conn: Connection, result: Result):
             logger.debug(f"{conn.session['username']} tried to register.")
             raise Exception(
                 "Already logged in as %s!" % conn.session["username"])
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_result_valid(result)
         username = result.data["username"]
         password = result.data["password"]
         confirm = result.data["confirm"]
@@ -82,9 +81,7 @@ def logout(conn: Connection, _):
         "message": "Successfully logged out."
     }
     try:
-        if "username" not in conn.session:
-            logger.debug("User was not logged in.")
-            raise Exception("You are not logged in!")
+        is_logged_in(conn)
         # conn.recp_pubkey = None
         logger.info(f"{conn.session['username']} has been logged out.")
         conn.session.clear()
@@ -109,9 +106,7 @@ def login(conn: Connection, result: Result):
             logger.debug(f"{conn.session['username']} tried to login.")
             raise Exception(
                 "Already logged in as %s!" % conn.session["username"])
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_result_valid(result)
         username = result.data["username"]
         password = result.data["password"]
         db: Database = current_conn.db
@@ -183,12 +178,8 @@ def change_password(conn: Connection, result: Result):
         "message": "Successfully change password."
     }
     try:
-        if "username" not in conn.session:
-            logger.debug(f"User was not logged in.")
-            raise Exception("You are not logged in!")
-        if not result.json or result.encrypted:
-            logger.warning("Result is encrypted or not in JSON format!")
-            raise Exception("Result is encrypted or not in JSON format!")
+        is_logged_in(conn)
+        is_result_valid(result)
         cur_password = result.data["cur_password"]
         new_password = result.data["new_password"]
         confirm_password = result.data["confirm_password"]
