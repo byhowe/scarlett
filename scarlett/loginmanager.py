@@ -185,7 +185,7 @@ def change_password(conn: Connection, result: Result):
         confirm_password = result.data["confirm_password"]
         db: Database = current_conn.db
         member_entry = db.get_collection("members").find_one(
-            {"_id": conn.session["_id"]},
+            {"_id": conn.session["id"]},
             {"password": True, "private_key": True, "squads": True}
         )
         if not pbkdf2_sha512.verify(cur_password, member_entry["password"]):
@@ -207,7 +207,7 @@ def change_password(conn: Connection, result: Result):
         )
 
         logger.info("A user has changed password: {"
-                    f"username={conn.session['username']}, id={str(conn.session['_id'])}"
+                    f"username={conn.session['username']}, id={str(conn.session['id'])}"
                     "}")
     except Exception as e:
         response["status"] = False
